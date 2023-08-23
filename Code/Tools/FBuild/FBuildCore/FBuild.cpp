@@ -423,6 +423,9 @@ void FBuild::SaveDependencyGraph( MemoryStream & stream, const char* nodeGraphDB
         WorkerThread::CreateThreadLocalTmpDir();
     }
 
+    const Env::ProcessorInfo& processorInfo = Env::GetProcessorInfo();
+    OUTPUT( "Using %u local worker threads (detected %u performance cores, %u efficiency cores)\n", m_Options.m_NumWorkerThreads, processorInfo.mNumPCores, processorInfo.mNumECores );
+
     if ( BuildProfiler::IsValid() )
     {
         BuildProfiler::Get().StartMetricsGathering();
