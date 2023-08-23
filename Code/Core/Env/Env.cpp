@@ -124,12 +124,13 @@
              && GetLastError() == ERROR_INSUFFICIENT_BUFFER )
         {
             PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX processors = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)ALLOC( returnLength, alignof( SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX ) );
+            int32_t count = -1;
             if ( GetLogicalProcessorInformationEx(RelationProcessorCore, (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)processors, &returnLength) )
             {
                 // This gives us one variably-sized entry per processor, so skip through it to count
-                int32_t count = 0;
                 DWORD remainingBytes = returnLength;
                 PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX current = processors;
+                count = 0;
                 for ( remainingBytes = returnLength; remainingBytes > 0; )
                 {
 
@@ -141,9 +142,11 @@
                     remainingBytes -= current->Size;
                     current = reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>( reinterpret_cast<char*>(current) + current->Size );
                 }
-
-                return count;
             }
+
+            FREE( processors );
+
+            return count;
         }
     #elif defined( __APPLE__ )
         int32_t numCpus = 0;
