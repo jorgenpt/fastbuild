@@ -19,6 +19,7 @@
     //#define USING_CLANG_11
     //#define USING_CLANG_14
     //#define USING_CLANG_15
+    //#define USING_CLANG_16
     #define USING_CLANG_17
 #endif
 
@@ -70,6 +71,9 @@
     #endif
     #if USING_CLANG_15
         #include "Windows/Clang15.bff"
+    #endif
+    #if USING_CLANG_16
+        #include "Windows/Clang16.bff"
     #endif
     #if USING_CLANG_17
         #include "Windows/Clang17.bff"
