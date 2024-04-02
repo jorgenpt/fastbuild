@@ -359,6 +359,104 @@ bool CIncludeParser::ParseGCC_Preprocessed( const char * compilerOutput,
 }
 PRAGMA_DISABLE_POP_MSVC
 
+// Parse
+//------------------------------------------------------------------------------
+bool CIncludeParser::ParseGCC_Dependencies( const char * compilerOutput,
+                                            size_t compilerOutputSize,
+                                            const AString & sourcePath )
+{
+    // Makefile dependency syntax is output: input1 input2 input3, so move forwards till we hit the ':'
+    // separating the input from the output.
+    size_t outputIndex = 0;
+    for ( ; outputIndex < compilerOutputSize && compilerOutput[outputIndex] != ':'; ++outputIndex )
+    {
+    }
+    ++outputIndex;
+
+    // There should be at least one dependency (the input file itself), so this means the compiler output is corrupt
+    if ( outputIndex >= compilerOutputSize )
+    {
+        return false;
+    }
+
+    AStackString<> currentInclude;
+    for ( ; outputIndex < compilerOutputSize; ++outputIndex )
+    {
+        const char output = compilerOutput[outputIndex];
+
+        if ( output == '\\' && outputIndex + 1 < compilerOutputSize )
+        {
+            const char nextOutput = compilerOutput[outputIndex + 1];
+            // Line continuation
+            if ( nextOutput == '\n' )
+            {
+                ++outputIndex;
+                continue;
+            }
+
+            // Line continuation if there's \ before a \r\n on Windows
+            #if defined(__WINDOWS__)
+            if ( nextOutput == '\r' && outputIndex + 2 < compilerOutputSize && compilerOutput[outputIndex + 2] == '\n' )
+            {
+                outputIndex += 2;
+                continue;
+            }
+            #endif
+
+            if ( nextOutput == ' ' || nextOutput == '\\' )
+            {
+                ++outputIndex;
+                currentInclude += nextOutput;
+                continue;
+            }
+
+            // Windows allows backslashes to be interpreted literally, since Windows paths usually contain them, but on other
+            // platforms this is an escape character that we don't understand.
+            #if !defined(__WINDOWS__)
+            return false;
+            #endif
+        }
+
+        // Check if we're at a line ending, in which case we're done processing. Makefile syntax has all dependencies on one line,
+        // unless they use line continuation (handled above).
+        #if defined(__WINDOWS__)
+        if ( output == '\r' && outputIndex + 1 < compilerOutputSize && compilerOutput[outputIndex + 1] == '\n' )
+        {
+            break;
+        }
+        #endif
+
+        if ( output == '\n' )
+        {
+            break;
+        }
+
+        // A space marks the next dependency, so output anything we've parsed so far
+        if ( output == ' ' )
+        {
+            if ( !currentInclude.IsEmpty() )
+            {
+                if ( currentInclude != sourcePath )
+                {
+                    AddInclude( currentInclude.begin(), currentInclude.end() );
+                }
+                currentInclude.Clear();
+            }
+        }
+        else
+        {
+            currentInclude += output;
+        }
+    }
+
+    if ( !currentInclude.IsEmpty() && currentInclude != sourcePath )
+    {
+        AddInclude( currentInclude.begin(), currentInclude.end() );
+    }
+
+    return true;
+}
+
 // SwapIncludes
 //------------------------------------------------------------------------------
 void CIncludeParser::SwapIncludes( Array< AString > & includes )

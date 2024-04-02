@@ -73,22 +73,10 @@ void CompilerDriverBase::Init( const ObjectNode * objectNode,
         if ( found )
         {
             outFullArgs += AStackString<>( token.Get(), found );
-            if ( m_OverrideSourceFile.IsEmpty() )
             {
-                if ( m_RelativeBasePath.IsEmpty() == false )
-                {
-                    AStackString<> relativeFileName;
-                    PathUtils::GetRelativePath( m_RelativeBasePath, m_ObjectNode->GetSourceFile()->GetName(), relativeFileName );
-                    outFullArgs += relativeFileName;
-                }
-                else
-                {
-                    outFullArgs += m_ObjectNode->GetSourceFile()->GetName();
-                }
-            }
-            else
-            {
-                outFullArgs += m_OverrideSourceFile;
+                AStackString<> outputPath;
+                GetSourcePath( outputPath );
+                outFullArgs += outputPath;
             }
             outFullArgs += AStackString<>( found + 2, token.GetEnd() );
             outFullArgs.AddDelimiter();
@@ -119,6 +107,27 @@ void CompilerDriverBase::Init( const ObjectNode * objectNode,
     }
 
     return false;
+}
+
+// GetOutputPath
+//------------------------------------------------------------------------------
+void CompilerDriverBase::GetSourcePath( AString & outString ) const
+{
+    if ( m_OverrideSourceFile.IsEmpty() )
+    {
+        if ( m_RelativeBasePath.IsEmpty() == false )
+        {
+            PathUtils::GetRelativePath( m_RelativeBasePath, m_ObjectNode->GetSourceFile()->GetName(), outString );
+        }
+        else
+        {
+            outString = m_ObjectNode->GetSourceFile()->GetName();
+        }
+    }
+    else
+    {
+        outString = m_OverrideSourceFile;
+    }
 }
 
 // AddAdditionalArgs_Preprocessor
