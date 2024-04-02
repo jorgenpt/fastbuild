@@ -49,6 +49,9 @@ public:
                                                    size_t & index,
                                                    Args & outFullArgs ) const;
 
+    // Get the path we'll pass to the compiler
+    virtual void GetSourcePath( AString & outString ) const;
+
     // Add additional args
     virtual void AddAdditionalArgs_Preprocessor( Args & outFullArgs ) const;
     virtual void AddAdditionalArgs_Common( bool isLocal,

@@ -262,6 +262,11 @@ ObjectNode::~ObjectNode()
         return DoBuild_QtRCC( job );
     }
 
+    if ( IsGCC() || IsClang() )
+    {
+        return DoBuildGCCClang_NoCache( job, useDeoptimization );
+    }
+
     return DoBuildOther( job, useDeoptimization );
 }
 
@@ -338,10 +343,9 @@ ObjectNode::~ObjectNode()
 {
     // Format compiler args string
     Args fullArgs;
-    const bool showIncludes( true );
     const bool useSourceMapping( true );
     const bool finalize( true );
-    if ( !BuildArgs( job, fullArgs, PASS_COMPILE, useDeoptimization, showIncludes, useSourceMapping, finalize ) )
+    if ( !BuildArgs( job, fullArgs, PASS_COMPILE, useDeoptimization, useSourceMapping, finalize, "/showIncludes" ) )
     {
         return BuildResult::eFailed; // BuildArgs will have emitted an error
     }
@@ -404,6 +408,43 @@ ObjectNode::~ObjectNode()
     return BuildResult::eOk;
 }
 
+// DoBuildGCCClang_NoCache
+//------------------------------------------------------------------------------
+Node::BuildResult ObjectNode::DoBuildGCCClang_NoCache( Job * job, bool useDeoptimization )
+{
+    // Format compiler args string
+    Args fullArgs;
+    const bool useSourceMapping( true );
+    const bool finalize( true );
+    const AString& overrideSourceFile = AString::GetEmpty();
+    AStackString<> sourcePath;
+    if ( !BuildArgs( job, fullArgs, PASS_COMPILE, useDeoptimization, useSourceMapping, finalize, "-MD -MT output -MF-", overrideSourceFile, &sourcePath ) )
+    {
+        return NODE_RESULT_FAILED; // BuildArgs will have emitted an error
+    }
+
+    EmitCompilationMessage( fullArgs, useDeoptimization );
+
+    // spawn the process
+    CompileHelper ch;
+    if ( !ch.SpawnCompiler( job, GetName(), GetCompiler(), GetCompiler()->GetExecutable(), fullArgs ) )
+    {
+        return NODE_RESULT_FAILED; // compile has logged error
+    }
+
+
+    // compiled ok, try to extract includes
+    if ( ProcessIncludesGCC( ch.GetOut().Get(), ch.GetOut().GetLength(), sourcePath ) == false )
+    {
+        return NODE_RESULT_FAILED; // ProcessIncludesMSCL will have emitted an error
+    }
+
+    // record new file time
+    RecordStampFromBuiltFile();
+
+    return NODE_RESULT_OK;
+}
+
 // DoBuildWithPreProcessor
 //------------------------------------------------------------------------------
 Node::BuildResult ObjectNode::DoBuildWithPreProcessor( Job * job, bool useDeoptimization, bool useCache, bool useSimpleDist )
@@ -411,11 +452,10 @@ Node::BuildResult ObjectNode::DoBuildWithPreProcessor( Job * job, bool useDeopti
     job->GetBuildProfilerScope()->SetStepName( "Preprocess" );
 
     Args fullArgs;
-    const bool showIncludes( false );
     const bool useSourceMapping( true );
     const bool finalize( true );
     const Pass pass = useSimpleDist ? PASS_PREP_FOR_SIMPLE_DISTRIBUTION : PASS_PREPROCESSOR_ONLY;
-    if ( !BuildArgs( job, fullArgs, pass, useDeoptimization, showIncludes, useSourceMapping, finalize ) )
+    if ( !BuildArgs( job, fullArgs, pass, useDeoptimization, useSourceMapping, finalize ) )
     {
         return BuildResult::eFailed; // BuildArgs will have emitted an error
     }
@@ -620,20 +660,18 @@ Node::BuildResult ObjectNode::DoBuildWithPreProcessor2( Job * job, bool useDeopt
             return BuildResult::eFailed; // WriteTmpFile will have emitted an error
         }
 
-        const bool showIncludes( false );
         const bool useSourceMapping( true );
         const bool finalize( true );
-        if ( !BuildArgs( job, fullArgs, PASS_COMPILE_PREPROCESSED, useDeoptimization, showIncludes, useSourceMapping, finalize, tmpFileName ) )
+        if ( !BuildArgs( job, fullArgs, PASS_COMPILE_PREPROCESSED, useDeoptimization, useSourceMapping, finalize, nullptr, tmpFileName ) )
         {
             return BuildResult::eFailed; // BuildArgs will have emitted an error
         }
     }
     else
     {
-        const bool showIncludes( false );
         const bool useSourceMapping( true );
         const bool finalize( true );
-        if ( !BuildArgs( job, fullArgs, PASS_COMPILE, useDeoptimization, showIncludes, useSourceMapping, finalize ) )
+        if ( !BuildArgs( job, fullArgs, PASS_COMPILE, useDeoptimization, useSourceMapping, finalize ) )
         {
             return BuildResult::eFailed; // BuildArgs will have emitted an error
         }
@@ -713,11 +751,10 @@ Node::BuildResult ObjectNode::DoBuild_QtRCC( Job * job )
     {
         // Format compiler args string
         const bool useDeoptimization( false );
-        const bool showIncludes( false );
         const bool useSourceMapping( true );
         const bool finalize( true );
         Args fullArgs;
-        if ( !BuildArgs( job, fullArgs, PASS_PREPROCESSOR_ONLY, useDeoptimization, showIncludes, useSourceMapping, finalize ) )
+        if ( !BuildArgs( job, fullArgs, PASS_PREPROCESSOR_ONLY, useDeoptimization, useSourceMapping, finalize ) )
         {
             return BuildResult::eFailed; // BuildArgs will have emitted an error
         }
@@ -761,11 +798,10 @@ Node::BuildResult ObjectNode::DoBuild_QtRCC( Job * job )
     {
         // Format compiler args string
         const bool useDeoptimization( false );
-        const bool showIncludes( false );
         const bool useSourceMapping( true );
         const bool finalize( true );
         Args fullArgs;
-        if ( !BuildArgs( job, fullArgs, PASS_COMPILE, useDeoptimization, showIncludes, useSourceMapping, finalize ) )
+        if ( !BuildArgs( job, fullArgs, PASS_COMPILE, useDeoptimization, useSourceMapping, finalize ) )
         {
             return BuildResult::eFailed; // BuildArgs will have emitted an error
         }
@@ -794,10 +830,9 @@ Node::BuildResult ObjectNode::DoBuild_QtRCC( Job * job )
 {
     // Format compiler args string
     Args fullArgs;
-    const bool showIncludes( false );
     const bool useSourceMapping( true );
     const bool finalize( true );
-    if ( !BuildArgs( job, fullArgs, PASS_COMPILE, useDeoptimization, showIncludes, useSourceMapping, finalize ) )
+    if ( !BuildArgs( job, fullArgs, PASS_COMPILE, useDeoptimization, useSourceMapping, finalize ) )
     {
         return BuildResult::eFailed; // BuildArgs will have emitted an error
     }
@@ -836,6 +871,39 @@ bool ObjectNode::ProcessIncludesMSCL( const char * output, uint32_t outputSize )
         if ( output && outputSize )
         {
             const bool result = parser.ParseMSCL_Output( output, outputSize );
+            if ( result == false )
+            {
+                FLOG_ERROR( "Failed to process includes for '%s'", GetName().Get() );
+                return false;
+            }
+        }
+
+        // record that we have a list of includes
+        // (we need a flag because we can't use the array size
+        // as a determinator, because the file might not include anything)
+        m_Includes.Clear();
+        parser.SwapIncludes( m_Includes );
+    }
+
+    FLOG_VERBOSE( "Process Includes:\n - File: %s\n - Time: %u ms\n - Num : %u", m_Name.Get(), uint32_t( t.GetElapsedMS() ), uint32_t( m_Includes.GetSize() ) );
+
+    return true;
+}
+
+// ProcessIncludesMSCL
+//------------------------------------------------------------------------------
+bool ObjectNode::ProcessIncludesGCC( const char * output, uint32_t outputSize, const AString & sourcePath )
+{
+    const Timer t;
+
+    {
+        CIncludeParser parser;
+
+        // It's possible to have no output in which case the file
+        // includes nothing
+        if ( output && outputSize )
+        {
+            const bool result = parser.ParseGCC_Dependencies( output, outputSize, sourcePath );
             if ( result == false )
             {
                 FLOG_ERROR( "Failed to process includes for '%s'", GetName().Get() );
@@ -1360,10 +1428,9 @@ const AString & ObjectNode::GetCacheName( Job * job ) const
     {
         Args args;
         const bool useDeoptimization = false;
-        const bool showIncludes = false;
         const bool useSourceMapping = false; // Source mapping compiler flags contain local paths, so we treat them specially
         const bool finalize = false; // Don't write args to response file
-        BuildArgs( job, args, PASS_COMPILE_PREPROCESSED, useDeoptimization, showIncludes, useSourceMapping, finalize );
+        BuildArgs( job, args, PASS_COMPILE_PREPROCESSED, useDeoptimization, useSourceMapping, finalize );
 
         if ( job->IsLocal() )
         {
@@ -1741,7 +1808,7 @@ void ObjectNode::EmitCompilationMessage( const Args & fullArgs, bool useDeoptimi
 
 // BuildArgs
 //------------------------------------------------------------------------------
-bool ObjectNode::BuildArgs( const Job * job, Args & fullArgs, Pass pass, bool useDeoptimization, bool showIncludes, bool useSourceMapping, bool finalize, const AString & overrideSrcFile ) const
+bool ObjectNode::BuildArgs( const Job * job, Args & fullArgs, Pass pass, bool useDeoptimization, bool useSourceMapping, bool finalize, const char* extraArgs, const AString & overrideSrcFile, AString * outSourcePath ) const
 {
     PROFILE_FUNCTION;
 
@@ -1829,9 +1896,15 @@ bool ObjectNode::BuildArgs( const Job * job, Args & fullArgs, Pass pass, bool us
     }
     driver->AddAdditionalArgs_Common( job->IsLocal(), fullArgs );
 
-    if ( showIncludes )
+    if ( extraArgs && *extraArgs )
     {
-        fullArgs += " /showIncludes"; // we'll extract dependency information from this
+        fullArgs.AddDelimiter();
+        fullArgs += extraArgs;
+    }
+
+    if ( outSourcePath != nullptr )
+    {
+        driver->GetSourcePath( *outSourcePath );
     }
 
     // Skip finalization?

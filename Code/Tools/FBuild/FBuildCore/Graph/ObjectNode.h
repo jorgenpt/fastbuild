@@ -188,6 +188,7 @@ private:
     virtual void Migrate( const Node & oldNode ) override;
 
     BuildResult DoBuildMSCL_NoCache( Job * job, bool useDeoptimization );
+    BuildResult DoBuildGCCClang_NoCache( Job * job, bool useDeoptimization );
     BuildResult DoBuildWithPreProcessor( Job * job, bool useDeoptimization, bool useCache, bool useSimpleDist );
     BuildResult DoBuildWithPreProcessor2( Job * job,
                                           bool useDeoptimization,
@@ -198,6 +199,7 @@ private:
     BuildResult DoBuildOther( Job * job, bool useDeoptimization );
 
     bool ProcessIncludesMSCL( const char * output, uint32_t outputSize );
+    bool ProcessIncludesGCC( const char * output, uint32_t outputSize, const AString & sourcePath );
     bool ProcessIncludesWithPreProcessor( Job * job );
 
     const AString & GetCacheName( Job * job ) const;
@@ -221,7 +223,7 @@ private:
         PASS_COMPILE,
         PASS_PREP_FOR_SIMPLE_DISTRIBUTION,
     };
-    bool BuildArgs( const Job * job, Args & fullArgs, Pass pass, bool useDeoptimization, bool useShowIncludes, bool useSourceMapping, bool finalize, const AString & overrideSrcFile = AString::GetEmpty() ) const;
+    bool BuildArgs( const Job * job, Args & fullArgs, Pass pass, bool useDeoptimization, bool useSourceMapping, bool finalize, const char* extraArgs = nullptr, const AString & overrideSrcFile = AString::GetEmpty(), AString * outSourcePath = nullptr ) const;
 
     BuildResult BuildPreprocessedOutput( const Args & fullArgs, Job * job, bool useDeoptimization ) const;
     bool LoadStaticSourceFileForDistribution( const Args & fullArgs, Job * job, bool useDeoptimization ) const;
