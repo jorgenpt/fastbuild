@@ -412,8 +412,27 @@ Node::BuildResult ObjectNode::DoBuildGCCClang_NoCache( Job * job, bool useDeopti
     const bool useSourceMapping( true );
     const bool finalize( true );
     const AString& overrideSourceFile = AString::GetEmpty();
+
+    AStackString<> extraArgs( "-MD -MT output" );
+    AStackString<> dependencyPath;
+    WorkerThread::CreateTempFilePath( "deps.d", dependencyPath );
+    extraArgs.AppendFormat( " -MF\"%s\"", dependencyPath.Get() );
+
+    // Try to delete the file.
+    if ( !FileIO::FileDelete( dependencyPath.Get() ) )
+    {
+        // The common case is that the file exists (which is why we don't check to
+        // see before deleting it above). If it failed to delete, we must now work
+        // out if it's because it didn't exist or because of an actual problem.
+        if ( FileIO::FileExists( dependencyPath.Get() ) )
+        {
+            FLOG_ERROR( "Error deleting stale dependency file '%s'", dependencyPath.Get() );
+            return NODE_RESULT_FAILED;
+        }
+    }
+
     AStackString<> sourcePath;
-    if ( !BuildArgs( job, fullArgs, PASS_COMPILE, useDeoptimization, useSourceMapping, finalize, "-MD -MT output -MF-", overrideSourceFile, &sourcePath ) )
+    if ( !BuildArgs( job, fullArgs, PASS_COMPILE, useDeoptimization, useSourceMapping, finalize, extraArgs.Get(), overrideSourceFile, &sourcePath ) )
     {
         return NODE_RESULT_FAILED; // BuildArgs will have emitted an error
     }
@@ -427,9 +446,8 @@ Node::BuildResult ObjectNode::DoBuildGCCClang_NoCache( Job * job, bool useDeopti
         return NODE_RESULT_FAILED; // compile has logged error
     }
 
-
     // compiled ok, try to extract includes
-    if ( ProcessIncludesGCC( ch.GetOut().Get(), ch.GetOut().GetLength(), sourcePath ) == false )
+    if ( ProcessIncludesGCC( dependencyPath, sourcePath ) == false )
     {
         return NODE_RESULT_FAILED; // ProcessIncludesMSCL will have emitted an error
     }
@@ -871,18 +889,34 @@ bool ObjectNode::ProcessIncludesMSCL( const char * output, uint32_t outputSize )
 
 // ProcessIncludesMSCL
 //------------------------------------------------------------------------------
-bool ObjectNode::ProcessIncludesGCC( const char * output, uint32_t outputSize, const AString & sourcePath )
+bool ObjectNode::ProcessIncludesGCC( const AString& dependencyPath, const AString & sourcePath )
 {
     const Timer t;
+
+    FileStream dependencyStream;
+    if ( dependencyStream.Open( dependencyPath.Get() ) == false )
+    {
+        FLOG_ERROR( "Failed to open dependency file '%s'", dependencyPath.Get() );
+        return false;
+    }
+
+    const uint32_t size = (uint32_t)dependencyStream.GetFileSize();
+    AString fileContents;
+    fileContents.SetLength( size );
+    if ( dependencyStream.Read( fileContents.Get(), size ) != size )
+    {
+        FLOG_ERROR( "Error reading dependency file '%s'", dependencyPath.Get() );
+        return false;
+    }
 
     {
         CIncludeParser parser;
 
         // It's possible to have no output in which case the file
         // includes nothing
-        if ( output && outputSize )
+        if ( size )
         {
-            const bool result = parser.ParseGCC_Dependencies( output, outputSize, sourcePath );
+            const bool result = parser.ParseGCC_Dependencies( fileContents.Get(), size, sourcePath );
             if ( result == false )
             {
                 FLOG_ERROR( "Failed to process includes for '%s'", GetName().Get() );

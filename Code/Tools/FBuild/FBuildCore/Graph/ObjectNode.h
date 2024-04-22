@@ -199,7 +199,7 @@ private:
     BuildResult DoBuildOther( Job * job, bool useDeoptimization );
 
     bool ProcessIncludesMSCL( const char * output, uint32_t outputSize );
-    bool ProcessIncludesGCC( const char * output, uint32_t outputSize, const AString & sourcePath );
+    bool ProcessIncludesGCC( const AString& dependencyPath, const AString & sourcePath );
     bool ProcessIncludesWithPreProcessor( Job * job );
 
     const AString & GetCacheName( Job * job ) const;
