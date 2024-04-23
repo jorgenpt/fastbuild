@@ -666,6 +666,7 @@ Alias( 'All+Tests' )
             .Items          = {
                                 'fbuild.bff'
                                 '.FASTBuild/HelperFunctions.bff'
+                                '.clang-format'
                               }
         ]
         .Folder_External =

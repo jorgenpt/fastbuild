@@ -1,0 +1,38 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+AlignOperands: true
+AlignTrailingComments: true
+BraceWrapping: 
+  AfterCaseLabel: true
+  AfterClass: true
+  AfterControlStatement: true
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  AfterUnion: true
+  AfterExternBlock: false
+  BeforeCatch: true
+  BeforeElse: true
+  BeforeLambdaBody: true
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+BreakBeforeBraces: Custom
+BreakConstructorInitializers: AfterColon
+BreakConstructorInitializersBeforeComma: false
+ColumnLimit: 1955
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
+ContinuationIndentWidth: 0
+Cpp11BracedListStyle: false
+IndentCaseLabels: true
+IndentGotoLabels: false
+IndentWidth: 4
+SpacesInParens: Custom
+SpacesInParensOptions:
+    InConditionalStatement: true
+    Other: true
+...
