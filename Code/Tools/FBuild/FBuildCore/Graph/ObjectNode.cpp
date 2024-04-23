@@ -895,20 +895,26 @@ bool ObjectNode::ProcessIncludesGCC( const AString& dependencyPath, const AStrin
 {
     const Timer t;
 
-    FileStream dependencyStream;
-    if ( dependencyStream.Open( dependencyPath.Get() ) == false )
-    {
-        FLOG_ERROR( "Failed to open dependency file '%s'", dependencyPath.Get() );
-        return false;
-    }
-
-    const uint32_t size = (uint32_t)dependencyStream.GetFileSize();
     AString fileContents;
-    fileContents.SetLength( size );
-    if ( dependencyStream.Read( fileContents.Get(), size ) != size )
     {
-        FLOG_ERROR( "Error reading dependency file '%s'", dependencyPath.Get() );
-        return false;
+        FileStream dependencyStream;
+        // We allow the file to not exist, since e.g. building PCH codegen objects
+        // doesn't produce a file.
+        if ( dependencyStream.Open( dependencyPath.Get() ) )
+        {
+            const uint32_t size = (uint32_t)dependencyStream.GetFileSize();
+            fileContents.SetLength( size );
+            if ( dependencyStream.Read( fileContents.Get(), size ) != size )
+            {
+                FLOG_ERROR( "Error reading dependency file '%s'", dependencyPath.Get() );
+                return false;
+            }
+        }
+        else if ( FileIO::FileExists( dependencyPath.Get() ) == true )
+        {
+            FLOG_ERROR( "Error opening dependency file '%s'", dependencyPath.Get() );
+            return false;
+        }
     }
 
     {
@@ -916,9 +922,9 @@ bool ObjectNode::ProcessIncludesGCC( const AString& dependencyPath, const AStrin
 
         // It's possible to have no output in which case the file
         // includes nothing
-        if ( size )
+        if ( fileContents.IsEmpty() == false )
         {
-            const bool result = parser.ParseGCC_Dependencies( fileContents.Get(), size, sourcePath );
+            const bool result = parser.ParseGCC_Dependencies( fileContents.Get(), fileContents.GetLength(), sourcePath );
             if ( result == false )
             {
                 FLOG_ERROR( "Failed to process includes for '%s'", GetName().Get() );
