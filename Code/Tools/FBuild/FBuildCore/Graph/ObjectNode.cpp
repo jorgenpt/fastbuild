@@ -418,7 +418,7 @@ Node::BuildResult ObjectNode::DoBuildGCCClang_NoCache( Job * job, bool useDeopti
     EnsurePathExistsForFile( dependencyPath );
 
     AStackString<> extraArgs( "-MD -MT output" );
-    extraArgs.AppendFormat( " -MF\"%s\"", dependencyPath.Get() );
+    extraArgs.AppendFormat( " \"-MF%s\"", dependencyPath.Get() );
 
     // Try to delete the file.
     if ( !FileIO::FileDelete( dependencyPath.Get() ) )
