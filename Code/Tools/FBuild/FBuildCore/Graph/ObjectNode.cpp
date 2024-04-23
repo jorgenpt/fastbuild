@@ -413,9 +413,11 @@ Node::BuildResult ObjectNode::DoBuildGCCClang_NoCache( Job * job, bool useDeopti
     const bool finalize( true );
     const AString& overrideSourceFile = AString::GetEmpty();
 
-    AStackString<> extraArgs( "-MD -MT output" );
     AStackString<> dependencyPath;
     WorkerThread::CreateTempFilePath( "deps.d", dependencyPath );
+    EnsurePathExistsForFile( dependencyPath );
+
+    AStackString<> extraArgs( "-MD -MT output" );
     extraArgs.AppendFormat( " -MF\"%s\"", dependencyPath.Get() );
 
     // Try to delete the file.
